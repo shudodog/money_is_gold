@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/src/widgets/framework.dart';
 import 'package:flutter/src/widgets/placeholder.dart';
+import 'package:intl/intl.dart';
 import 'package:modals/modals.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -18,14 +20,21 @@ class _TimerScreenState extends State<TimerScreen> {
   bool isStarted = false;
 
   late TextEditingController titleController;
+  late TextEditingController moneyController;
+  final numberFormat = NumberFormat('#,###');
 
   String title = '';
+  final _valueList = ['dollar', 'won', 'yen', 'yuan'];
+  var _selectedValue = 'won';
 
   Future initPrefs() async {
     prefs = await SharedPreferences.getInstance();
     final recomTitleList = prefs.getStringList('recomTitleList');
+    final moneyPerHour = prefs.getString('MoneyPerHour');
     if (recomTitleList != null) {
-      recomTitle = recomTitleList;
+      setState(() {
+        recomTitle = recomTitleList;
+      });
     } else {
       //나중에 ACCCOUNTS에서 최근 3개로 넣을예정
       await prefs
@@ -34,14 +43,26 @@ class _TimerScreenState extends State<TimerScreen> {
         recomTitle = ['study', 'work', 'go to gym'];
       });
     }
+
+    if (moneyPerHour != null) {
+      setState(() {
+        moneyController.text = numberFormat.format(moneyPerHour);
+      });
+    } else {
+      await prefs.setString('moneyPerHour', '10000');
+      setState(() {
+        moneyController.text = '10,000';
+      });
+    }
   }
 
   @override
   void initState() {
     // TODO: implement initState
     super.initState();
-    initPrefs();
     titleController = TextEditingController();
+    moneyController = TextEditingController();
+    initPrefs();
   }
 
   @override
@@ -49,6 +70,7 @@ class _TimerScreenState extends State<TimerScreen> {
     // TODO: implement dispose
     super.dispose();
     titleController.dispose();
+    moneyController.dispose();
   }
 
   @override
@@ -73,7 +95,7 @@ class _TimerScreenState extends State<TimerScreen> {
           child: Column(
             children: [
               SizedBox(
-                height: 50,
+                height: 30,
               ),
               Text(
                 'Today time left :',
@@ -84,11 +106,11 @@ class _TimerScreenState extends State<TimerScreen> {
                 style: TextStyle(fontSize: 25),
               ),
               SizedBox(
-                height: 100,
+                height: 70,
               ),
               Container(
-                width: 300,
-                height: 150,
+                width: 330,
+                height: 160,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
@@ -96,36 +118,144 @@ class _TimerScreenState extends State<TimerScreen> {
                     width: 2.0,
                   ),
                 ),
-                child: Column(children: [
-                  SizedBox(
-                    height: 15,
-                  ),
-                  Row(
-                    children: [
-                      SizedBox(
-                        width: 20,
-                      ),
-                      Text(
-                        'Title : ',
-                        style: TextStyle(
-                          fontSize: 24,
-                        ),
-                      ),
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 24,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    'Money : ',
-                    style: TextStyle(
-                      fontSize: 24,
+                child: Column(
+                  children: [
+                    SizedBox(
+                      height: 15,
                     ),
-                  ),
-                ]),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 15,
+                        ),
+                        Container(
+                          decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey),
+                              borderRadius: BorderRadius.circular(10)),
+                          height: 30,
+                          child: Padding(
+                            padding: const EdgeInsets.all(4.0),
+                            child: DropdownButton(
+                              value: _selectedValue,
+                              items: _valueList.map(
+                                (value) {
+                                  return DropdownMenuItem(
+                                    child: Text(value),
+                                    value: value,
+                                  );
+                                },
+                              ).toList(),
+                              onChanged: (value) {
+                                setState(
+                                  () {
+                                    if (value != null) {
+                                      _selectedValue = value;
+                                    }
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 15,
+                        ),
+                        Container(
+                          width: 130,
+                          child: TextField(
+                            style: TextStyle(
+                              fontSize: 25,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            keyboardType: TextInputType.number, // 숫자 입력 키보드로 설정
+                            inputFormatters: <TextInputFormatter>[
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(
+                                  9), // 최대 9자리까지 입력 가능
+                              // 입력한 숫자를 쉼표(,)를 포함한 문자열로 변환
+                              TextInputFormatter.withFunction(
+                                  (oldValue, newValue) {
+                                final intVal = int.tryParse(newValue.text);
+                                if (intVal != null) {
+                                  final newString = numberFormat.format(intVal);
+                                  return TextEditingValue(
+                                    text: newString,
+                                    selection: TextSelection.collapsed(
+                                        offset: newString.length),
+                                  );
+                                } else {
+                                  return oldValue;
+                                }
+                              }),
+                            ],
+                            decoration: InputDecoration(
+                              focusedBorder: UnderlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: Colors.amber, // focus 상태일 때 적용되는 밑줄 색상
+                                  width: 2.0,
+                                ),
+                              ),
+                              border: UnderlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: Colors.amber, // focus 상태일 때 적용되는 밑줄 색상
+                                  width: 2.0,
+                                ),
+                              ),
+                              hintText: 'Enter money you got in an hour',
+                            ),
+                            controller: moneyController,
+                          ),
+                        ),
+                        SizedBox(
+                          width: 15,
+                        ),
+                        Text('per hour')
+                      ],
+                    ),
+                    SizedBox(
+                      height: 15,
+                    ),
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: 20,
+                        ),
+                        Text(
+                          'Title : ',
+                          style: TextStyle(
+                            fontSize: 24,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () async {
+                            final title = await openDialog();
+                            if (title == null || title.isEmpty) return;
+                            setState(() {
+                              this.title = title;
+                            });
+                          },
+                          child: Container(
+                            height: 40,
+                            width: 200,
+                            padding: EdgeInsets.all(5.0),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(
+                                  5.0), // 20의 반지름을 가진 원형으로 모서리를 둥글게 처리
+                              color: Colors.grey,
+                            ),
+                            child: Text(
+                              title,
+                              style: TextStyle(
+                                fontSize: 24,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
               SizedBox(
                 height: 50,
@@ -171,6 +301,9 @@ class _TimerScreenState extends State<TimerScreen> {
         content: Column(
           children: [
             TextField(
+              inputFormatters: <TextInputFormatter>[
+                LengthLimitingTextInputFormatter(20),
+              ],
               autofocus: true,
               decoration: InputDecoration(
                 hintText: 'Enter title',
@@ -253,7 +386,7 @@ class _TimerScreenState extends State<TimerScreen> {
           OutlinedButton(
             onPressed: submit,
             child: Text(
-              'START',
+              'SAVE',
               style: TextStyle(
                 color: Colors.amber[800],
               ),
